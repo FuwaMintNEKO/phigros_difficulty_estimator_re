@@ -1,0 +1,17 @@
+# bytecode / env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# training data and generated artefacts never go in the repo
+data/
+outputs/
+*.csv
+analysis_output/
+archive/
+
+# editors / local tooling
+.workbuddy/
+.vscode/
+.idea/
