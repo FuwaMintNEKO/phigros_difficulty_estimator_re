@@ -47,7 +47,7 @@ python -m rating.batch <目录或文件...> --out result.csv [--speed 1.3]
 | 指标 | 数值 |
 |---|---|
 | 官谱 5 折（按歌曲分组）MAE | 0.69 |
-| 高手表留出 MAE / bias | 0.39 / −0.11 |
+| 17+自制谱表留出 MAE / bias | 0.39 / −0.11 |
 | 17–18 段 / 18–18.5 段 / 18.5+ 段 MAE | 0.39 / 0.31 / 0.50 |
 
 18.5 以上样本少、标注本身偏高，这一段预测偏低属于已知情况。`models/model.pkl` 是 pickle，
@@ -75,3 +75,8 @@ python tests/test_rating.py          # 解析与特征的正确性，使用合�
 ## 许可
 
 MIT，见 [`LICENSE`](LICENSE)。
+
+## 上传者备注
+感谢deepseek-v4-flash-0731,deepseek-v4-pro-0813,deepseek-v4.1-flash,deepseek-v4.1-flash-1017,gpt-6.1-sol,gpt-6.1-astra,gemini-3.8-flash,claude-sonnet-5-5,grok-4.7的开发
+本次是基于Phigros4.0.1.2版本开发的定数预测系统，难度尺度用18.0对应社区的18.8，代码里有很多屎山，没有屎山的版本我尝试过了，效果非常一般，我也不知道怎么做出来的，但是鉴于黑盒测试效果还不错，屎山就留在这儿了，期待更多大佬做出更好的预测系统。
+never say 「give up」.
