@@ -12,7 +12,8 @@ Phigros 谱面定数估算器。输入一张谱面（官谱 / RPE / PEC / 谱包
 
 ```bash
 pip install -r requirements.txt
-python app.py                       # http://127.0.0.1:5000，拖入谱面即可，可多选
+python app.py                       # http://127.0.0.1:5050，拖入谱面即可，可多选
+PORT=8080 python app.py             # 端口被占用时自己指定（默认 5050，刻意避开常用的 5000）
 ```
 
 界面里每张谱面一张卡片：定数（0–18 绿到红渐变）、社区尺度换算、谱面自带的信息

@@ -364,5 +364,7 @@ def api_predict():
 
 
 if __name__ == '__main__':
-    print('Phigros 定数估算  ->  http://127.0.0.1:5000')
-    app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
+    # 5000 is commonly taken (Style-Bert-VITS2, many dev servers); stay off it.
+    port = int(os.environ.get('PORT', 5050))
+    print(f'Phigros 定数估算  ->  http://127.0.0.1:{port}')
+    app.run(host='127.0.0.1', port=port, debug=False, threaded=True)
