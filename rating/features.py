@@ -290,6 +290,11 @@ def extract(chart: ChartData) -> dict[str, float]:
 
     # ----- note type mix (只在 press 内部区分 Tap / Hold) -----------------
     f['frac_tap'] = float((chart.types[press_mask] == TYPE_TAP).mean())
+    # 全音符口径的类型占比（供模型参考 drag/flick 的构成，不参与 press 统计）
+    all_types = np.asarray(chart.types, dtype=int)
+    total_notes = max(int(all_types.size), 1)
+    f['frac_drag'] = float((all_types == TYPE_DRAG).sum() / total_notes)
+    f['frac_flick'] = float((all_types == TYPE_FLICK).sum() / total_notes)
     f['frac_below'] = float((~chart.above[press_mask]).mean())
 
     # ----- per-hand load over time --------------------------------------

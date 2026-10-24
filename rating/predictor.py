@@ -122,6 +122,13 @@ class Predictor:
         official = result['score']
         chart = self.chart(path)
         kind = chart.kind
+        # 类型构成直接从谱面统计：模型特征只看 Tap+Hold，不能拿来画饼图。
+        type_names = {1: 'tap', 2: 'drag', 3: 'hold', 4: 'flick'}
+        raw_types = np.asarray(chart.types, dtype=int)
+        note_total = max(int(raw_types.size), 1)
+        mix = {name: float((raw_types == tid).sum() / note_total)
+               for tid, name in type_names.items()}
+
         # reported at the speed being previewed: at 1.3x the chart really is
         # 1.3x denser and 1.3x shorter
         stats = {
@@ -131,13 +138,8 @@ class Predictor:
             'peak': round(float(features.get('d0.5_max', 0.0)), 1),
             'finale': round(float(features.get('finale_d0.5_max', 0.0)), 1),
             'hold_ratio': round(float(features.get('hold_frac', 0.0)), 3),
-            'mix': {
-                'tap': round(float(features.get('frac_tap', 0.0)), 4),
-                'hold': round(float(features.get('hold_frac', 0.0)), 4),
-                'drag': round(float(features.get('frac_drag', 0.0)), 4),
-                'flick': round(float(features.get('frac_flick', 0.0)), 4),
-            },
-            'drag_ratio': round(float(features.get('frac_drag', 0.0)), 3),
+            'mix': {k: round(v, 4) for k, v in mix.items()},
+            'drag_ratio': round(mix['drag'], 3),
             'base_duration': round(float(raw.get('duration', 0.0)), 1),
         }
         if monotone and abs(speed - 1.0) > 1e-9:
