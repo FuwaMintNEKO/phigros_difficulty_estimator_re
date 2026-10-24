@@ -8,18 +8,26 @@ import os
 import pickle
 
 import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.linear_model import Ridge
-from sklearn.model_selection import GroupKFold
-from sklearn.neural_network import MLPRegressor
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+# scikit-learn is only needed to *train*. Keeping the import local lets the
+# frozen model be served on devices where sklearn isn't installable (Android),
+# because rating.portable imports the classes below without pulling sklearn in.
+def _sklearn():
+    from sklearn.ensemble import GradientBoostingRegressor
+    from sklearn.linear_model import Ridge
+    from sklearn.model_selection import GroupKFold
+    from sklearn.neural_network import MLPRegressor
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    return dict(GradientBoostingRegressor=GradientBoostingRegressor, Ridge=Ridge,
+                GroupKFold=GroupKFold, MLPRegressor=MLPRegressor,
+                make_pipeline=make_pipeline, StandardScaler=StandardScaler)
 
 from . import scale
 from .dataset import ROOT
 
 DATASET = os.path.join(ROOT, 'outputs', 'dataset.pkl')
-MODEL_PATH = os.path.join(ROOT, 'models', 'model.pkl')
+# 打包版（Android）只有 sklearn-free 的 npz，用环境变量指过去
+MODEL_PATH = os.environ.get('PHIGROS_MODEL') or os.path.join(ROOT, 'models', 'model.pkl')
 
 # Features whose absolute value depends on the authoring convention of the
 # format rather than on the chart: RPE/PEC scroll speeds are written in a free
@@ -81,9 +89,10 @@ class HybridModel:
         self.ridge = None
 
     def fit(self, X, y, sample_weight=None):
+        sk = _sklearn()
         self.base.fit(X, y, sample_weight=sample_weight)
         residual = y - self.base.predict(X)
-        self.ridge = make_pipeline(StandardScaler(), Ridge(alpha=self.alpha))
+        self.ridge = sk['make_pipeline'](sk['StandardScaler'](), sk['Ridge'](alpha=self.alpha))
         weight = {} if sample_weight is None else {'ridge__sample_weight': sample_weight}
         self.ridge.fit(X, residual, **weight)
         return self
@@ -263,15 +272,18 @@ class HighLift:
 
 def build_model(kind: str):
     if kind == 'ridge':
-        return make_pipeline(StandardScaler(), Ridge(alpha=3.0))
+        sk = _sklearn()
+        return sk['make_pipeline'](sk['StandardScaler'](), sk['Ridge'](alpha=3.0))
     if kind == 'gbr':
-        return GradientBoostingRegressor(
+        sk = _sklearn()
+        return sk['GradientBoostingRegressor'](
             n_estimators=500, learning_rate=0.04, max_depth=3,
             subsample=0.85, min_samples_leaf=6, random_state=0)
     if kind == 'mlp':
-        return make_pipeline(
-            StandardScaler(),
-            MLPRegressor(hidden_layer_sizes=(48, 16), activation='tanh', alpha=1e-3,
+        sk = _sklearn()
+        return sk['make_pipeline'](
+            sk['StandardScaler'](),
+            sk['MLPRegressor'](hidden_layer_sizes=(48, 16), activation='tanh', alpha=1e-3,
                          learning_rate_init=3e-3, max_iter=4000, early_stopping=True,
                          n_iter_no_change=60, random_state=0))
     raise ValueError(kind)
@@ -280,7 +292,7 @@ def build_model(kind: str):
 def grouped_oof(kind: str, X: np.ndarray, y: np.ndarray, groups: np.ndarray,
                 weights: np.ndarray, folds: int = 5) -> np.ndarray:
     predictions = np.full(y.shape, np.nan)
-    splitter = GroupKFold(n_splits=folds)
+    splitter = _sklearn()['GroupKFold'](n_splits=folds)
     for train_idx, test_idx in splitter.split(X, y, groups):
         model = build_model(kind)
         model.fit(X[train_idx], y[train_idx], **_fit_kwargs(model, weights[train_idx]))

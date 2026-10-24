@@ -43,6 +43,7 @@ class ChartData:
     fakes: np.ndarray            # (n,) bool
     hold_ends: np.ndarray        # (n,) seconds (== time for non-holds)
     speeds: np.ndarray           # (n,) scroll speed at the note, heights/s
+    lines: np.ndarray | None = None   # (n,) 判定线索引，用于多线特征
     duration: float = 0.0
     warnings: list[str] = field(default_factory=list)
     meta: dict = field(default_factory=dict)
@@ -120,14 +121,17 @@ def _read_text(path: str) -> str:
 def _from_model(chart, path: str, kind: str) -> ChartData:
     rows = []
     warnings = list(getattr(chart, 'warnings', []))
-    for line in chart.lines:
+    for line_index, line in enumerate(chart.lines):
         for note in line.notes:
             rows.append((
                 float(note.t), float(note.x), int(note.type_id),
                 bool(note.above), bool(getattr(note, 'fake', False)),
                 float(note.t_end if note.type_id == TYPE_HOLD else note.t),
                 float(line.speed.at(note.t)) * OFFICIAL_Y_TO_NORM,
+                line_index,
             ))
+    # 假音符（装饰）在解析阶段就剔除：后续所有特征只面对真实音符。
+    rows = [row for row in rows if not row[4]]
     # Notes on the same tick must come out in a format-independent order: the
     # "adjacent note" features (jump_*, alternation, jackness) read neighbours, and
     # the source order of a chord differs between official / RPE / PEC files. Time
@@ -160,6 +164,7 @@ def _from_model(chart, path: str, kind: str) -> ChartData:
         fakes=np.asarray([row[4] for row in rows], dtype=bool),
         hold_ends=np.asarray([row[5] for row in rows], dtype=float),
         speeds=np.asarray([row[6] for row in rows], dtype=float),
+        lines=np.asarray([row[7] for row in rows], dtype=int),
         duration=float(times.max()), warnings=warnings,
     )
 

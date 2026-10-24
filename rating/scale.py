@@ -25,7 +25,7 @@ a community label always produces a 0.01-scale change in the training target.
 from __future__ import annotations
 
 import numpy as np
-from scipy.interpolate import PchipInterpolator
+from .pchip import Pchip
 
 # (official, community)
 ANCHORS = [
@@ -38,8 +38,8 @@ ANCHORS = [
     (17.2, 17.2),
     (17.4, 17.4),
     (17.6, 17.6),
-    (17.9, 18.4),
-    (18.0, 18.8),
+    (17.9, 18.2),
+    (18.0, 18.6),
 ]
 
 _OFFICIAL = np.array([a[0] for a in ANCHORS], dtype=float)
@@ -49,7 +49,7 @@ _COMMUNITY = np.array([a[1] for a in ANCHORS], dtype=float)
 # linearly with the boundary slope (which is 1.0 below 17.6 and 4.0 above 18.0),
 # so the map never overshoots or folds back the way a free cubic extrapolation
 # would.
-_official_to_community_spline = PchipInterpolator(_OFFICIAL, _COMMUNITY)
+_official_to_community_spline = Pchip(_OFFICIAL, _COMMUNITY)
 _LAST_SLOPE = (_COMMUNITY[-1] - _COMMUNITY[-2]) / (_OFFICIAL[-1] - _OFFICIAL[-2])
 _FIRST_SLOPE = (_COMMUNITY[1] - _COMMUNITY[0]) / (_OFFICIAL[1] - _OFFICIAL[0])
 
@@ -74,9 +74,11 @@ def community_to_official(value):
         low = np.where(below, mid, low)
         high = np.where(below, high, mid)
     inside = 0.5 * (low + high)
-    # above the last anchor the forward map is linear, so invert it directly
+    # 两端之外正映射是线性的，直接解析求逆；二分下界只保证覆盖锚点区间，
+    # 用它兜底会把 6.0 以下的官方定数（EZ 谱低至 0.5）全部夹到 6.0。
     above = _OFFICIAL[-1] + (y - _COMMUNITY[-1]) / _LAST_SLOPE
-    return np.where(y > _COMMUNITY[-1], above, inside)
+    below = _OFFICIAL[0] + (y - _COMMUNITY[0]) / _FIRST_SLOPE
+    return np.where(y > _COMMUNITY[-1], above, np.where(y < _COMMUNITY[0], below, inside))
 
 
 def describe() -> dict:

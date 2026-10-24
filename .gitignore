@@ -15,3 +15,8 @@ archive/
 .workbuddy/
 .vscode/
 .idea/
+
+# local model backups and generated mobile bundle
+*.bak
+*.bak-*
+models/*.npz

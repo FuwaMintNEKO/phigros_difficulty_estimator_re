@@ -223,26 +223,23 @@ def main() -> int:
     top = _fit_with_weights(Xc, y_comm, label_density_weights(y_comm, alpha=0.5), 'top')
     tail_top = fit_tail(Xc, y_comm, names)
 
-    # ---- band-level bias, measured on the ranked reference set ------------
-    ranked_rows = [i for i, row in enumerate(rows) if row['record'].source == 'ranked']
+    # ---- band-level bias: deliberately not applied -------------------------
+    # A damped median-residual curve used to be fitted on the `ranked` reference
+    # set (558 charts, community labels) and applied to every output. Measured on
+    # the shipped model that curve costs far more than it buys:
+    #
+    #   official 16+      -0.340 -> -0.093   (MAE 0.340 -> 0.115)
+    #   community holdout -0.293 -> -0.010   (MAE 0.359 -> 0.183)
+    #   ranked reference  +0.063 -> +0.187   (MAE 0.498 -> 0.548)
+    #
+    # It was also fitted on the community scale but applied to official-scale
+    # values, so above 17.6 it looks up the wrong part of the curve. The two
+    # populations have opposite-signed residuals; one shift cannot fix both.
+    # Refitting it on official OOF residuals gives a flat curve (|median| < 0.04)
+    # because calibration already removes the band-level offset, so the stage is
+    # dropped rather than retuned. `BiasCorrection` stays for import compatibility.
     bias_curve = None
     bias_damping = 0.0
-    if ranked_rows:
-        Xr = X[ranked_rows]
-        label_r = np.asarray([rows[i]['record'].label_community for i in ranked_rows])
-        base_r = np.asarray(calib_full(full.predict(Xr)))
-        top_r = scale.community_to_official(
-            tail_top(Xr, np.asarray(calib_top(top.predict(Xr)))))
-        w = np.clip((base_r - BLEND_LOW) / (BLEND_HIGH - BLEND_LOW), 0.0, 1.0)
-        pred_r = scale.official_to_community((1 - w) * base_r + w * top_r)
-        bias_curve = fit_bias_curve(pred_r, label_r)
-        bias_damping = 0.6
-        err_before = pred_r - label_r
-        if bias_curve is not None:
-            err_after = BiasCorrection(bias_curve, bias_damping)(pred_r) - label_r
-            print(f'  ranked reference bias: MAE {np.abs(err_before).mean():.3f} -> '
-                  f'{np.abs(err_after).mean():.3f}, bias {err_before.mean():+.3f} -> '
-                  f'{err_after.mean():+.3f}')
 
     fit_rows = index['official'] + index['community']
     medians = np.median(X[fit_rows], axis=0)

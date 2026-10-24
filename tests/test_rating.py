@@ -142,11 +142,11 @@ def test_sentinel_note_does_not_stretch_duration():
 
 def test_scale_hits_the_documented_anchors():
     assert abs(float(scale.official_to_community(17.6)) - 17.6) < 1e-9
-    assert abs(float(scale.official_to_community(17.9)) - 18.4) < 1e-9
-    assert abs(float(scale.official_to_community(18.0)) - 18.8) < 1e-9
+    assert abs(float(scale.official_to_community(17.9)) - 18.2) < 1e-9
+    assert abs(float(scale.official_to_community(18.0)) - 18.6) < 1e-9
     assert abs(float(scale.community_to_official(17.6)) - 17.6) < 1e-9
-    assert abs(float(scale.community_to_official(18.4)) - 17.9) < 1e-9
-    assert abs(float(scale.community_to_official(18.8)) - 18.0) < 1e-9
+    assert abs(float(scale.community_to_official(18.2)) - 17.9) < 1e-9
+    assert abs(float(scale.community_to_official(18.6)) - 18.0) < 1e-9
     xs = np.linspace(10, 20, 500)
     mapped = scale.official_to_community(xs)
     assert np.all(np.diff(mapped) > 0), 'map must be strictly increasing'
@@ -158,6 +158,56 @@ def test_scale_is_smooth():
     slopes = np.diff(mapped) / np.diff(xs)
     assert slopes.max() < 6.0, slopes.max()
     assert np.max(np.abs(np.diff(slopes))) < 0.05, 'map must not kink'
+
+
+def test_pressure_matches_dense_reference_and_excludes_contact_notes():
+    from dataclasses import replace
+    from rating.charts import ChartData, TYPE_TAP, TYPE_HOLD, TYPE_FLICK, TYPE_DRAG
+    from rating.pressure import pressure_summary
+    times = np.array([0.75, 1.25, 1.25, 2.0, 3.5, 4.25])
+    types = np.array([TYPE_TAP, TYPE_HOLD, TYPE_FLICK, TYPE_DRAG, TYPE_TAP, TYPE_HOLD])
+    fake = np.array([False, False, False, False, False, True])
+    chart = ChartData('test', 'rpe', times, np.zeros(6), types,
+                      np.ones(6, dtype=bool), fake, times + 0.1, np.ones(6), 5.0)
+    got = pressure_summary(chart)
+    expected_times = np.array([0.75, 1.25, 3.5])
+    grid = (np.arange(100000) + 0.5) * 5.0 / 100000
+    density = (np.abs(grid[:, None] - expected_times[None, :]) < 0.5).sum(axis=1)
+    high = density > 3.0 / 5.0
+    assert got['press_count'] == 3
+    assert abs(got['pressure_load'] - np.mean(density * high)) < 1e-5
+    assert abs(got['pressure_load'] - got['high_pressure_mean_nps']
+               * got['high_pressure_seconds'] / chart.duration) < 1e-12
+    no_press = replace(chart, types=np.full(6, TYPE_DRAG))
+    assert pressure_summary(no_press)['pressure_load'] == 0.0
+    features = extract(no_press)
+    assert all(math.isfinite(v) for v in features.values())
+    for key in ('nps', 'press_nps', 'pressure_load'):
+        assert features[key] == 0.0, (key, features[key])
+    # 零按键谱只返回规模字段，模型侧按 0 补齐
+    assert 'd0.25_max' not in features
+
+
+def test_pressure_duration_normalisation_and_boundary_mass():
+    from dataclasses import replace
+    from rating.charts import ChartData, TYPE_TAP
+    from rating.pressure import pressure_summary
+    times = np.array([0.0, 0.5, 1.0, 1.5])
+    chart = ChartData('test', 'rpe', times, np.zeros(4), np.full(4, TYPE_TAP),
+                      np.ones(4, dtype=bool), np.zeros(4, dtype=bool), times,
+                      np.ones(4), 4.0)
+    got = pressure_summary(chart)
+    assert got['pressure_load'] <= got['mean_press_nps'] + 1e-12
+    assert got['high_pressure_seconds'] <= chart.duration
+    assert got['high_pressure_note_share'] <= 1.0 + 1e-12
+    doubled = replace(chart, times=np.r_[times, times + 4.0], xs=np.zeros(8),
+                      types=np.full(8, TYPE_TAP), above=np.ones(8, dtype=bool),
+                      fakes=np.zeros(8, dtype=bool), hold_ends=np.r_[times, times + 4.0],
+                      speeds=np.ones(8), duration=8.0)
+    # Explicit formula identity holds regardless of how repetition changes edges.
+    other = pressure_summary(doubled)
+    assert abs(other['pressure_load'] - other['high_pressure_mean_nps']
+               * other['high_pressure_fraction']) < 1e-12
 
 
 def _main() -> int:

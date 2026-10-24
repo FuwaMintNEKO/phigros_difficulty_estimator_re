@@ -9,8 +9,6 @@ from dataclasses import replace
 
 import numpy as np
 
-from scipy.interpolate import PchipInterpolator
-
 from . import scale
 from .charts import load_chart
 from .compose import CATEGORIES, decomposition
@@ -22,8 +20,13 @@ class Predictor:
         if not os.path.exists(model_path):
             raise FileNotFoundError(
                 f'找不到模型文件 {model_path}。请先训练（python -m rating.train）或把 model.pkl 放到 models/ 下。')
-        with open(model_path, 'rb') as handle:
-            self.bundle = pickle.load(handle)
+        if str(model_path).endswith('.npz'):
+            # sklearn-free bundle, for platforms where it cannot be installed
+            from .portable import load_bundle
+            self.bundle = load_bundle(model_path)
+        else:
+            with open(model_path, 'rb') as handle:
+                self.bundle = pickle.load(handle)
         self.columns = self.bundle['columns']
         self.baseline = self.bundle['baseline']
         self._cache: dict[str, object] = {}
